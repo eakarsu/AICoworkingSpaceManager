@@ -3,6 +3,33 @@ const router = express.Router();
 const pool = require('../db');
 const { auth } = require('../middleware/auth');
 
+// ── Input validation helper ───────────────────────────────────────────────────
+function validateVisitor(body) {
+  const errors = [];
+  if (!body.visitor_name || String(body.visitor_name).trim() === '') errors.push('visitor_name is required.');
+  if (!body.purpose || String(body.purpose).trim() === '') errors.push('purpose is required.');
+  return errors;
+}
+
+// GET /api/visitors/today - Today's visitor log
+router.get('/today', auth, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT v.*, u.name AS host_name
+       FROM visitors v JOIN users u ON v.host_user_id = u.id
+       WHERE DATE(COALESCE(v.check_in_time, v.created_at)) = CURRENT_DATE
+       ORDER BY COALESCE(v.check_in_time, v.created_at) DESC`
+    );
+    res.json({
+      date: new Date().toISOString().split('T')[0],
+      total: result.rows.length,
+      visitors: result.rows,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET all visitors
 router.get('/', async (req, res) => {
   try {
@@ -29,13 +56,24 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// POST register visitor
+// POST register visitor with host, purpose, duration
 router.post('/', auth, async (req, res) => {
   try {
-    const { host_user_id, visitor_name, visitor_email, visitor_company, purpose, badge_number } = req.body;
+    const errors = validateVisitor(req.body);
+    if (errors.length) return res.status(400).json({ errors });
+
+    const { host_user_id, visitor_name, visitor_email, visitor_company, purpose, badge_number, expected_duration_hours } = req.body;
+    const hostId = host_user_id || req.user.id;
+
+    // Validate host exists
+    const hostCheck = await pool.query('SELECT id FROM users WHERE id = $1', [hostId]);
+    if (hostCheck.rows.length === 0) return res.status(404).json({ error: 'Host member not found.' });
+
     const result = await pool.query(
-      'INSERT INTO visitors (host_user_id, visitor_name, visitor_email, visitor_company, purpose, badge_number) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
-      [host_user_id || req.user.id, visitor_name, visitor_email, visitor_company, purpose, badge_number]
+      `INSERT INTO visitors (host_user_id, visitor_name, visitor_email, visitor_company, purpose, badge_number, expected_duration_hours, check_in_time, status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, CURRENT_TIMESTAMP, 'checked_in')
+       RETURNING *`,
+      [hostId, visitor_name.trim(), visitor_email || null, visitor_company || null, purpose.trim(), badge_number || null, expected_duration_hours || null]
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {

@@ -1,13 +1,20 @@
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 require('dotenv').config();
 
 const db = require('./db');
 const { auth, adminOnly, staffOrAdmin, JWT_SECRET } = require('./middleware/auth');
+const { generalRateLimiter } = require('./middleware/rateLimiter');
 
 const aiRoutes = require('./routes/ai');
+const aiCustomRoutes = require('./routes/aiCustom');
+const billingRoutes = require('./routes/billing');
+const visitorsRoutes = require('./routes/visitors');
+const { router: roomAvailabilityRouter } = require('./routes/roomAvailability');
+const exportRoutes = require('./routes/export');
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -15,8 +22,28 @@ const PORT = process.env.PORT || 4000;
 // ============================================================
 // Middleware
 // ============================================================
-app.use(cors());
+// Security headers
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginResourcePolicy: { policy: 'cross-origin' }
+}));
+
+// Env-driven CORS
+const corsOrigins = (process.env.CORS_ORIGINS || process.env.FRONTEND_URL || 'http://localhost:5173')
+  .split(',').map(o => o.trim()).filter(Boolean);
+app.use(cors({
+  origin: (origin, cb) => {
+    if (!origin) return cb(null, true);
+    if (corsOrigins.includes('*') || corsOrigins.includes(origin)) return cb(null, true);
+    return cb(new Error(`CORS blocked: ${origin}`));
+  },
+  credentials: true
+}));
+
 app.use(express.json());
+
+// General rate limiting on all /api routes
+app.use('/api', generalRateLimiter);
 
 // Request logging
 app.use((req, res, next) => {
@@ -131,14 +158,31 @@ app.get('/api/auth/me', auth, async (req, res) => {
 });
 
 // ============================================================
-// Users Routes
+// Users / Members Routes (with pagination)
 // ============================================================
 app.get('/api/users', auth, async (req, res) => {
   try {
-    const result = await db.query(
-      'SELECT id, email, name, role, company, skills, bio, phone, avatar_url, created_at FROM users ORDER BY name'
-    );
-    res.json(result.rows);
+    const page = Math.max(1, parseInt(req.query.page || 1));
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit || 50)));
+    const offset = (page - 1) * limit;
+
+    const [dataResult, countResult] = await Promise.all([
+      db.query(
+        'SELECT id, email, name, role, company, skills, bio, phone, avatar_url, created_at FROM users ORDER BY name LIMIT $1 OFFSET $2',
+        [limit, offset]
+      ),
+      db.query('SELECT COUNT(*) FROM users'),
+    ]);
+
+    res.json({
+      data: dataResult.rows,
+      pagination: {
+        page,
+        limit,
+        total: parseInt(countResult.rows[0].count),
+        totalPages: Math.ceil(parseInt(countResult.rows[0].count) / limit),
+      },
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Server error.' });
@@ -189,16 +233,30 @@ app.get('/api/membership-plans/:id', async (req, res) => {
 app.get('/api/desks', auth, async (req, res) => {
   try {
     const { floor, status, type } = req.query;
-    let query = 'SELECT d.*, u.name as assigned_to_name FROM desks d LEFT JOIN users u ON d.assigned_to = u.id WHERE 1=1';
+    const page = Math.max(1, parseInt(req.query.page || 1));
+    const limit = Math.min(200, Math.max(1, parseInt(req.query.limit || 100)));
+    const offset = (page - 1) * limit;
+
     const params = [];
+    let where = 'WHERE 1=1';
+    if (floor) { params.push(floor); where += ` AND d.floor = $${params.length}`; }
+    if (status) { params.push(status); where += ` AND d.status = $${params.length}`; }
+    if (type) { params.push(type); where += ` AND d.type = $${params.length}`; }
 
-    if (floor) { params.push(floor); query += ` AND d.floor = $${params.length}`; }
-    if (status) { params.push(status); query += ` AND d.status = $${params.length}`; }
-    if (type) { params.push(type); query += ` AND d.type = $${params.length}`; }
-
-    query += ' ORDER BY d.name';
-    const result = await db.query(query, params);
-    res.json(result.rows);
+    const baseQuery = `FROM desks d LEFT JOIN users u ON d.assigned_to = u.id ${where}`;
+    params.push(limit, offset);
+    const [dataResult, countResult] = await Promise.all([
+      db.query(`SELECT d.*, u.name as assigned_to_name ${baseQuery} ORDER BY d.name LIMIT $${params.length - 1} OFFSET $${params.length}`, params),
+      db.query(`SELECT COUNT(*) ${baseQuery}`, params.slice(0, -2))
+    ]);
+    res.json({
+      data: dataResult.rows,
+      pagination: {
+        page, limit,
+        total: parseInt(countResult.rows[0].count),
+        totalPages: Math.ceil(parseInt(countResult.rows[0].count) / limit)
+      }
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Server error.' });
@@ -244,24 +302,46 @@ app.get('/api/meeting-rooms/:id', auth, async (req, res) => {
 });
 
 // ============================================================
-// Meeting Room Bookings Routes
+// Meeting Room Bookings Routes (with pagination)
 // ============================================================
 app.get('/api/meeting-room-bookings', auth, async (req, res) => {
   try {
     const { room_id, user_id, date } = req.query;
-    let query = `SELECT b.*, r.name as room_name, u.name as user_name
-                 FROM meeting_room_bookings b
-                 JOIN meeting_rooms r ON b.room_id = r.id
-                 JOIN users u ON b.user_id = u.id WHERE 1=1`;
+    const page = Math.max(1, parseInt(req.query.page || 1));
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit || 50)));
+    const offset = (page - 1) * limit;
+
     const params = [];
+    let where = 'WHERE 1=1';
 
-    if (room_id) { params.push(room_id); query += ` AND b.room_id = $${params.length}`; }
-    if (user_id) { params.push(user_id); query += ` AND b.user_id = $${params.length}`; }
-    if (date) { params.push(date); query += ` AND DATE(b.start_time) = $${params.length}`; }
+    if (room_id) { params.push(room_id); where += ` AND b.room_id = $${params.length}`; }
+    if (user_id) { params.push(user_id); where += ` AND b.user_id = $${params.length}`; }
+    if (date) { params.push(date); where += ` AND DATE(b.start_time) = $${params.length}`; }
 
-    query += ' ORDER BY b.start_time';
-    const result = await db.query(query, params);
-    res.json(result.rows);
+    const baseQuery = `FROM meeting_room_bookings b
+                       JOIN meeting_rooms r ON b.room_id = r.id
+                       JOIN users u ON b.user_id = u.id ${where}`;
+
+    params.push(limit);
+    params.push(offset);
+
+    const [dataResult, countResult] = await Promise.all([
+      db.query(
+        `SELECT b.*, r.name as room_name, u.name as user_name ${baseQuery} ORDER BY b.start_time LIMIT $${params.length - 1} OFFSET $${params.length}`,
+        params
+      ),
+      db.query(`SELECT COUNT(*) ${baseQuery}`, params.slice(0, -2)),
+    ]);
+
+    res.json({
+      data: dataResult.rows,
+      pagination: {
+        page,
+        limit,
+        total: parseInt(countResult.rows[0].count),
+        totalPages: Math.ceil(parseInt(countResult.rows[0].count) / limit),
+      },
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Server error.' });
@@ -271,10 +351,20 @@ app.get('/api/meeting-room-bookings', auth, async (req, res) => {
 app.post('/api/meeting-room-bookings', auth, async (req, res) => {
   try {
     const { room_id, title, start_time, end_time, attendees } = req.body;
+    const validationErrors = [];
+    if (!room_id) validationErrors.push('room_id is required.');
+    if (!title || String(title).trim() === '') validationErrors.push('title is required.');
+    if (!start_time) validationErrors.push('start_time is required.');
+    if (!end_time) validationErrors.push('end_time is required.');
+    if (start_time && end_time && new Date(start_time) >= new Date(end_time)) {
+      validationErrors.push('end_time must be after start_time.');
+    }
+    if (validationErrors.length) return res.status(400).json({ errors: validationErrors });
+
     const result = await db.query(
       `INSERT INTO meeting_room_bookings (room_id, user_id, title, start_time, end_time, attendees)
        VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-      [room_id, req.user.id, title, start_time, end_time, attendees || 1]
+      [room_id, req.user.id, title.trim(), start_time, end_time, attendees || 1]
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
@@ -335,14 +425,22 @@ app.post('/api/phone-booth-bookings', auth, async (req, res) => {
 // ============================================================
 app.get('/api/checkins', auth, async (req, res) => {
   try {
-    const result = await db.query(
-      `SELECT c.*, u.name as user_name, d.name as desk_name
-       FROM checkins c
-       JOIN users u ON c.user_id = u.id
-       LEFT JOIN desks d ON c.desk_id = d.id
-       ORDER BY c.check_in_time DESC`
-    );
-    res.json(result.rows);
+    const page = Math.max(1, parseInt(req.query.page || 1));
+    const limit = Math.min(200, Math.max(1, parseInt(req.query.limit || 100)));
+    const offset = (page - 1) * limit;
+    const baseQuery = `FROM checkins c JOIN users u ON c.user_id = u.id LEFT JOIN desks d ON c.desk_id = d.id`;
+    const [dataResult, countResult] = await Promise.all([
+      db.query(`SELECT c.*, u.name as user_name, d.name as desk_name ${baseQuery} ORDER BY c.check_in_time DESC LIMIT $1 OFFSET $2`, [limit, offset]),
+      db.query(`SELECT COUNT(*) ${baseQuery}`)
+    ]);
+    res.json({
+      data: dataResult.rows,
+      pagination: {
+        page, limit,
+        total: parseInt(countResult.rows[0].count),
+        totalPages: Math.ceil(parseInt(countResult.rows[0].count) / limit)
+      }
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Server error.' });
@@ -398,35 +496,7 @@ app.get('/api/invoices', auth, async (req, res) => {
   }
 });
 
-// ============================================================
-// Visitors Routes
-// ============================================================
-app.get('/api/visitors', auth, async (req, res) => {
-  try {
-    const result = await db.query(
-      `SELECT v.*, u.name as host_name FROM visitors v JOIN users u ON v.host_user_id = u.id ORDER BY v.created_at DESC`
-    );
-    res.json(result.rows);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Server error.' });
-  }
-});
-
-app.post('/api/visitors', auth, async (req, res) => {
-  try {
-    const { visitor_name, visitor_email, visitor_company, purpose, check_in_time } = req.body;
-    const result = await db.query(
-      `INSERT INTO visitors (host_user_id, visitor_name, visitor_email, visitor_company, purpose, check_in_time)
-       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-      [req.user.id, visitor_name, visitor_email, visitor_company, purpose, check_in_time]
-    );
-    res.status(201).json(result.rows[0]);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Server error.' });
-  }
-});
+// Visitors are handled by /api/visitors router (mounted below after AI routes)
 
 // ============================================================
 // Events Routes
@@ -434,15 +504,38 @@ app.post('/api/visitors', auth, async (req, res) => {
 app.get('/api/events', async (req, res) => {
   try {
     const { status, type } = req.query;
-    let query = `SELECT e.*, u.name as organizer_name FROM events e JOIN users u ON e.organizer_id = u.id WHERE 1=1`;
+    const page = Math.max(1, parseInt(req.query.page || 1));
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit || 50)));
+    const offset = (page - 1) * limit;
+
     const params = [];
+    let where = 'WHERE 1=1';
 
-    if (status) { params.push(status); query += ` AND e.status = $${params.length}`; }
-    if (type) { params.push(type); query += ` AND e.type = $${params.length}`; }
+    if (status) { params.push(status); where += ` AND e.status = $${params.length}`; }
+    if (type) { params.push(type); where += ` AND e.type = $${params.length}`; }
 
-    query += ' ORDER BY e.event_date, e.start_time';
-    const result = await db.query(query, params);
-    res.json(result.rows);
+    const baseQuery = `FROM events e JOIN users u ON e.organizer_id = u.id ${where}`;
+
+    params.push(limit);
+    params.push(offset);
+
+    const [dataResult, countResult] = await Promise.all([
+      db.query(
+        `SELECT e.*, u.name as organizer_name ${baseQuery} ORDER BY e.event_date, e.start_time LIMIT $${params.length - 1} OFFSET $${params.length}`,
+        params
+      ),
+      db.query(`SELECT COUNT(*) ${baseQuery}`, params.slice(0, -2)),
+    ]);
+
+    res.json({
+      data: dataResult.rows,
+      pagination: {
+        page,
+        limit,
+        total: parseInt(countResult.rows[0].count),
+        totalPages: Math.ceil(parseInt(countResult.rows[0].count) / limit),
+      },
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Server error.' });
@@ -466,10 +559,20 @@ app.get('/api/events/:id', async (req, res) => {
 app.post('/api/events', auth, async (req, res) => {
   try {
     const { title, description, event_date, start_time, end_time, location, capacity, type } = req.body;
+    const validationErrors = [];
+    if (!title || String(title).trim() === '') validationErrors.push('title is required.');
+    if (!event_date) validationErrors.push('event_date is required.');
+    if (!location || String(location).trim() === '') validationErrors.push('location is required.');
+    if (!type) validationErrors.push('type is required.');
+    if (capacity !== undefined && (isNaN(Number(capacity)) || Number(capacity) < 1)) {
+      validationErrors.push('capacity must be a positive number.');
+    }
+    if (validationErrors.length) return res.status(400).json({ errors: validationErrors });
+
     const result = await db.query(
       `INSERT INTO events (title, description, event_date, start_time, end_time, location, capacity, organizer_id, type)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
-      [title, description, event_date, start_time, end_time, location, capacity, req.user.id, type]
+      [title.trim(), description, event_date, start_time, end_time, location.trim(), capacity, req.user.id, type]
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
@@ -882,6 +985,37 @@ app.get('/api/dashboard/stats', auth, async (req, res) => {
 // ============================================================
 app.use('/api/ai', aiRoutes);
 
+app.use('/api/ai', require('./routes/predictiveMaintenance'));
+
+app.use('/api/ai', require('./routes/dynamicPricing'));
+
+app.use('/api/ai', require('./routes/viralGrowth'));
+
+app.use('/api/ai', require('./routes/amenityUtilization'));
+
+app.use('/api/ai', require('./routes/memberLtv'));
+app.use('/api/ai', aiCustomRoutes); // 8 new custom non-CRUD AI features
+
+// ============================================================
+// Billing Routes
+// ============================================================
+app.use('/api/billing', billingRoutes);
+
+// ============================================================
+// Visitors Routes (enhanced)
+// ============================================================
+app.use('/api/visitors', visitorsRoutes);
+
+// ============================================================
+// Room Availability SSE Stream
+// ============================================================
+app.use('/api/rooms', roomAvailabilityRouter);
+
+// ============================================================
+// Export Routes
+// ============================================================
+app.use('/api/export', exportRoutes);
+
 // ============================================================
 // Generic CRUD: PUT and DELETE for all entities
 // ============================================================
@@ -894,7 +1028,6 @@ const crudTables = {
   'phone-booth-bookings': 'phone_booth_bookings',
   'checkins': 'checkins',
   'invoices': 'invoices',
-  'visitors': 'visitors',
   'events': 'events',
   'maintenance-requests': 'maintenance_requests',
   'day-passes': 'day_passes',
@@ -1015,6 +1148,27 @@ app.use((err, req, res, next) => {
 // ============================================================
 // Start Server
 // ============================================================
+// // === Batch 02 Gaps & Frontend Mounts ===
+app.use('/api/gap-maintenance-cleaning-parking-storage-phonebooths-lack-ai-end', require('./routes/gap_maintenance_cleaning_parking_storage_phonebooths_lack_ai_end'));
+
+// // === Batch 02 Gaps & Frontend Mounts ===
+app.use('/api/gap-accesscontrol-checkins-lack-ai-anomaly-detection', require('./routes/gap_accesscontrol_checkins_lack_ai_anomaly_detection'));
+
+// // === Batch 02 Gaps & Frontend Mounts ===
+app.use('/api/gap-limited-guest-wifi-bandwidth-management', require('./routes/gap_limited_guest_wifi_bandwidth_management'));
+
+// // === Batch 02 Gaps & Frontend Mounts ===
+app.use('/api/gap-limited-calendar-integration-no-full-google-outlook-adapter', require('./routes/gap_limited_calendar_integration_no_full_google_outlook_adapter'));
+
+// // === Batch 02 Gaps & Frontend Mounts ===
+app.use('/api/gap-limited-payment-integration-only-stripe-stub', require('./routes/gap_limited_payment_integration_only_stripe_stub'));
+
+// // === Batch 02 Gaps & Frontend Mounts ===
+app.use('/api/gap-no-member-mobile-app-for-check-in-booking-community', require('./routes/gap_no_member_mobile_app_for_check_in_booking_community'));
+
+// // === Batch 02 Gaps & Frontend Mounts ===
+app.use('/api/gap-no-webhooks', require('./routes/gap_no_webhooks'));
+
 app.listen(PORT, () => {
   console.log(`AI Coworking Space Manager API running on port ${PORT}`);
   console.log(`Health check: http://localhost:${PORT}/api/health`);

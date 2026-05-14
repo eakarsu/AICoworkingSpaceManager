@@ -1,5 +1,5 @@
 import { NavLink, useLocation } from 'react-router-dom';
-import { featureRoutes, aiFeatures } from '../App';
+import { featureRoutes, aiFeatures, customAiPages } from '../App';
 
 const navSections = [
   { title: 'Space Management', items: ['desks', 'meeting-rooms', 'meeting-bookings', 'phone-booths', 'phone-booth-bookings', 'parking', 'storage'] },
@@ -43,6 +43,12 @@ export default function Layout({ user, onLogout, children }) {
           {aiFeatures.map(route => (
             <NavLink key={route.path} to={`/${route.path}`} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
               <span className="nav-icon">{route.icon}</span> {route.title}
+            </NavLink>
+          ))}
+
+          {(customAiPages || []).map(p => (
+            <NavLink key={p.path} to={`/${p.path}`} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+              <span className="nav-icon">{p.icon}</span> {p.title}
             </NavLink>
           ))}
         </nav>

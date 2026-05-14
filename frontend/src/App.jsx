@@ -5,6 +5,22 @@ import Dashboard from './pages/Dashboard';
 import Layout from './components/Layout';
 import FeaturePage from './pages/FeaturePage';
 import AIFeaturePage from './pages/AIFeaturePage';
+import AICustomToolsPage from './pages/AICustomToolsPage';
+import AINewToolsPage from './pages/AINewToolsPage';
+
+// // === Batch 02 Gaps & Frontend Mounts ===
+import CfPredictiveMaintenanceOccupancy from './pages/CfPredictiveMaintenanceOccupancy';
+import CfDynamicPricingRevenueOptimization from './pages/CfDynamicPricingRevenueOptimization';
+import CfCommunityGrowthViralLoops from './pages/CfCommunityGrowthViralLoops';
+import CfAmenityUtilizationPrediction from './pages/CfAmenityUtilizationPrediction';
+import CfMemberLifetimeValueModeling from './pages/CfMemberLifetimeValueModeling';
+import GapMaintenanceCleaningParkingStoragePhoneboothsLackAiEnd from './pages/GapMaintenanceCleaningParkingStoragePhoneboothsLackAiEnd';
+import GapAccesscontrolCheckinsLackAiAnomalyDetection from './pages/GapAccesscontrolCheckinsLackAiAnomalyDetection';
+import GapLimitedGuestWifiBandwidthManagement from './pages/GapLimitedGuestWifiBandwidthManagement';
+import GapLimitedCalendarIntegrationNoFullGoogleOutlookAdapter from './pages/GapLimitedCalendarIntegrationNoFullGoogleOutlookAdapter';
+import GapLimitedPaymentIntegrationOnlyStripeStub from './pages/GapLimitedPaymentIntegrationOnlyStripeStub';
+import GapNoMemberMobileAppForCheckInBookingCommunity from './pages/GapNoMemberMobileAppForCheckInBookingCommunity';
+import GapNoWebhooks from './pages/GapNoWebhooks';
 
 const featureRoutes = [
   { path: 'memberships', title: 'Membership Plans', endpoint: 'membership-plans', fields: ['name','type','price_monthly','features','max_members'], icon: '💳' },
@@ -42,6 +58,14 @@ const aiFeatures = [
   { path: 'ai/space-utilization', title: 'AI Space Analysis', endpoint: 'ai/space-utilization', description: 'Analyze space utilization and get layout recommendations', icon: '🏗️' },
 ];
 
+// Standalone AI custom tools (rendered with their own page, not via AIFeaturePage wrapper)
+const customAiPages = [
+  { path: 'ai-custom-tools', title: 'AI Custom Tools (7 new)', icon: '🤖' },
+  { path: 'ai-new-tools', title: 'AI New Tools (Maintenance & Cleaning)', icon: '🆕' },
+];
+
+export { customAiPages };
+
 export { featureRoutes, aiFeatures };
 
 function App() {
@@ -70,7 +94,21 @@ function App() {
         <Routes>
           <Route path="/login" element={<Login onLogin={handleLogin} />} />
           <Route path="*" element={<Navigate to="/login" />} />
-        </Routes>
+        
+        {/* // === Batch 02 Gaps & Frontend Mounts === */}
+        <Route path="/cf/predictive-maintenance-occupancy" element={<CfPredictiveMaintenanceOccupancy />} />
+        <Route path="/cf/dynamic-pricing-revenue-optimization" element={<CfDynamicPricingRevenueOptimization />} />
+        <Route path="/cf/community-growth-viral-loops" element={<CfCommunityGrowthViralLoops />} />
+        <Route path="/cf/amenity-utilization-prediction" element={<CfAmenityUtilizationPrediction />} />
+        <Route path="/cf/member-lifetime-value-modeling" element={<CfMemberLifetimeValueModeling />} />
+        <Route path="/gap/maintenance-cleaning-parking-storage-phonebooths-lack-ai-end" element={<GapMaintenanceCleaningParkingStoragePhoneboothsLackAiEnd />} />
+        <Route path="/gap/accesscontrol-checkins-lack-ai-anomaly-detection" element={<GapAccesscontrolCheckinsLackAiAnomalyDetection />} />
+        <Route path="/gap/limited-guest-wifi-bandwidth-management" element={<GapLimitedGuestWifiBandwidthManagement />} />
+        <Route path="/gap/limited-calendar-integration-no-full-google-outlook-adapter" element={<GapLimitedCalendarIntegrationNoFullGoogleOutlookAdapter />} />
+        <Route path="/gap/limited-payment-integration-only-stripe-stub" element={<GapLimitedPaymentIntegrationOnlyStripeStub />} />
+        <Route path="/gap/no-member-mobile-app-for-check-in-booking-community" element={<GapNoMemberMobileAppForCheckInBookingCommunity />} />
+        <Route path="/gap/no-webhooks" element={<GapNoWebhooks />} />
+      </Routes>
       </Router>
     );
   }
@@ -86,6 +124,8 @@ function App() {
           {aiFeatures.map(route => (
             <Route key={route.path} path={`/${route.path}`} element={<AIFeaturePage config={route} />} />
           ))}
+          <Route path="/ai-custom-tools" element={<AICustomToolsPage />} />
+          <Route path="/ai-new-tools" element={<AINewToolsPage />} />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       </Layout>
