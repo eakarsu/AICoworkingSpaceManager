@@ -7,6 +7,7 @@ import FeaturePage from './pages/FeaturePage';
 import AIFeaturePage from './pages/AIFeaturePage';
 import AICustomToolsPage from './pages/AICustomToolsPage';
 import AINewToolsPage from './pages/AINewToolsPage';
+import CustomViewsPage from './pages/CustomViewsPage';
 
 // // === Batch 02 Gaps & Frontend Mounts ===
 import CfPredictiveMaintenanceOccupancy from './pages/CfPredictiveMaintenanceOccupancy';
@@ -126,6 +127,7 @@ function App() {
           ))}
           <Route path="/ai-custom-tools" element={<AICustomToolsPage />} />
           <Route path="/ai-new-tools" element={<AINewToolsPage />} />
+          <Route path="/custom-views" element={<CustomViewsPage />} />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       </Layout>

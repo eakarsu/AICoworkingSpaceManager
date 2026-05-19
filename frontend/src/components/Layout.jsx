@@ -51,6 +51,11 @@ export default function Layout({ user, onLogout, children }) {
               <span className="nav-icon">{p.icon}</span> {p.title}
             </NavLink>
           ))}
+
+          <div className="nav-section-title">Custom Views</div>
+          <NavLink to="/custom-views" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+            <span className="nav-icon">🗺️</span> Space Views
+          </NavLink>
         </nav>
         <div className="sidebar-footer">
           <div className="sidebar-user">
