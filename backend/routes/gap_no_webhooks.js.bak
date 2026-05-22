@@ -1,22 +1,22 @@
 /**
- * Gap Feature: gap-limited-payment-integration-only-stripe-stub
- * Limited payment integration — only Stripe stub.
+ * Gap Feature: gap-no-webhooks
+ * No webhooks.
  *
- * POST /api/gap-limited-payment-integration-only-stripe-stub
+ * POST /api/gap-no-webhooks
  * Auth required. Generated as part of Gaps backend scaffold (batch_02).
- * Integration credentials: process.env.FEATURE_GAP_LIMITED_PAYMENT_INTEGRATION_ONLY_STRIPE_STUB_KEY
+ * Integration credentials: process.env.FEATURE_GAP_NO_WEBHOOKS_KEY
  * TODO: configure credentials
  */
 // // === Batch 02 Gaps & Frontend Mounts ===
 const express = require('express');
 const router = express.Router();
 let pool = null;
-const { auth } = require('../middleware/auth');
+const auth = require('../middleware/auth');
 
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || 'anthropic/claude-3-5-sonnet-20241022';
-const FEATURE_KEY = process.env.FEATURE_GAP_LIMITED_PAYMENT_INTEGRATION_ONLY_STRIPE_STUB_KEY;
-const SYSTEM_PROMPT = `You are an expert assistant specialized in: Limited payment integration — only Stripe stub..\nGoal: Limited payment integration — only Stripe stub.\nRespond with clear, actionable analysis. Prefer JSON when structured output is requested.`;
+const FEATURE_KEY = process.env.FEATURE_GAP_NO_WEBHOOKS_KEY;
+const SYSTEM_PROMPT = `You are an expert assistant specialized in: No webhooks..\nGoal: No webhooks.\nRespond with clear, actionable analysis. Prefer JSON when structured output is requested.`;
 
 let _gapTableReady = false;
 async function ensureGapTable() {
@@ -49,7 +49,7 @@ async function callLLM(userPayload) {
       Authorization: `Bearer ${OPENROUTER_API_KEY}`,
       'Content-Type': 'application/json',
       'HTTP-Referer': 'http://localhost:3000',
-      'X-Title': 'AICoworkingSpaceManager - gap-limited-payment-integration-only-stripe-stub',
+      'X-Title': 'AICoworkingSpaceManager - gap-no-webhooks',
     },
     body: JSON.stringify({
       model: OPENROUTER_MODEL,
@@ -79,24 +79,24 @@ router.post('/', auth, async (req, res) => {
     if (!payload || Object.keys(payload).length === 0) {
       return res.status(400).json({ error: 'Request body is required' });
     }
-    if (!FEATURE_KEY) res.set('X-Feature-Credentials-Missing', 'FEATURE_GAP_LIMITED_PAYMENT_INTEGRATION_ONLY_STRIPE_STUB_KEY');
-    const ai = await callLLM({ feature: 'gap-limited-payment-integration-only-stripe-stub', goal: 'Limited payment integration — only Stripe stub.', input: payload });
+    if (!FEATURE_KEY) res.set('X-Feature-Credentials-Missing', 'FEATURE_GAP_NO_WEBHOOKS_KEY');
+    const ai = await callLLM({ feature: 'gap-no-webhooks', goal: 'No webhooks.', input: payload });
     try {
       await ensureGapTable();
       if (pool && pool.query) {
         await pool.query(
           `INSERT INTO gap_features (feature_slug, input_data_json, result_json, model_used, user_id, created_at)
            VALUES ($1, $2, $3, $4, $5, NOW())`,
-          ['gap-limited-payment-integration-only-stripe-stub', JSON.stringify(payload), JSON.stringify(ai.result), ai.model, req.user?.id || null]
+          ['gap-no-webhooks', JSON.stringify(payload), JSON.stringify(ai.result), ai.model, req.user?.id || null]
         );
       }
     } catch (persistErr) {
-      console.warn('[gap-limited-payment-integration-only-stripe-stub] persistence skipped:', persistErr.message);
+      console.warn('[gap-no-webhooks] persistence skipped:', persistErr.message);
     }
     return res.json({
       ok: true,
-      feature: 'gap-limited-payment-integration-only-stripe-stub',
-      endpoint: '/api/gap-limited-payment-integration-only-stripe-stub',
+      feature: 'gap-no-webhooks',
+      endpoint: '/api/gap-no-webhooks',
       ai_result: ai.result,
       model: ai.model,
       tokens: ai.tokens,
@@ -104,15 +104,15 @@ router.post('/', auth, async (req, res) => {
       generated_at: new Date().toISOString(),
     });
   } catch (err) {
-    console.error('[gap-limited-payment-integration-only-stripe-stub] error:', err.message);
+    console.error('[gap-no-webhooks] error:', err.message);
     return res.status(err.statusCode || 500).json({ error: err.message || 'Internal error' });
   }
 });
 
 router.get('/health', (req, res) => {
   res.json({
-    feature: 'gap-limited-payment-integration-only-stripe-stub',
-    endpoint: '/api/gap-limited-payment-integration-only-stripe-stub',
+    feature: 'gap-no-webhooks',
+    endpoint: '/api/gap-no-webhooks',
     openrouter_configured: !!OPENROUTER_API_KEY,
     feature_key_configured: !!FEATURE_KEY,
   });

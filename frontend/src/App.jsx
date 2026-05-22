@@ -23,6 +23,11 @@ import GapLimitedPaymentIntegrationOnlyStripeStub from './pages/GapLimitedPaymen
 import GapNoMemberMobileAppForCheckInBookingCommunity from './pages/GapNoMemberMobileAppForCheckInBookingCommunity';
 import GapNoWebhooks from './pages/GapNoWebhooks';
 
+import CodexCustomVizFeature from './pages/CodexCustomVizFeature';
+import CodexOperationsFeature from './pages/CodexOperationsFeature';
+
+import TimelineView from './pages/TimelineView';
+
 const featureRoutes = [
   { path: 'memberships', title: 'Membership Plans', endpoint: 'membership-plans', fields: ['name','type','price_monthly','features','max_members'], icon: '💳' },
   { path: 'desks', title: 'Desk Management', endpoint: 'desks', fields: ['name','type','floor','zone','status','assigned_to','features'], icon: '🪑' },
@@ -93,6 +98,10 @@ function App() {
     return (
       <Router>
         <Routes>
+        <Route path="/insights/timeline" element={<TimelineView />} />
+        <Route path="/codex/custom-viz" element={<CodexCustomVizFeature />} />
+        <Route path="/codex/operations" element={<CodexOperationsFeature />} />
+
           <Route path="/login" element={<Login onLogin={handleLogin} />} />
           <Route path="*" element={<Navigate to="/login" />} />
         

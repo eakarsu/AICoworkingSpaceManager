@@ -17,7 +17,7 @@ async function callOpenRouter(prompt, systemPrompt) {
   const response = await axios.post(
     'https://openrouter.ai/api/v1/chat/completions',
     {
-      model: 'anthropic/claude-3-5-sonnet-20241022',
+      model: process.env.OPENROUTER_MODEL || 'anthropic/claude-3-5-sonnet-20241022',
       messages: [
         { role: 'system', content: systemPrompt || COWORKING_SYSTEM_PROMPT },
         { role: 'user', content: prompt },
