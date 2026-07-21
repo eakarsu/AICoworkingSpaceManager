@@ -1,0 +1,6 @@
+'use strict';
+const test=require('node:test');const assert=require('node:assert/strict');const w=require('../services/spaceOperations');const {validateRuntime}=require('../config/runtime');
+test('booking enforces capacity and valid interval',()=>{assert.throws(()=>w.validateBooking({idempotencyKey:'book-1',startsAt:'2026-01-01T10:00Z',endsAt:'2026-01-01T09:00Z',attendees:1},{active:true,capacity:1}),/range/);assert.doesNotThrow(()=>w.validateBooking({idempotencyKey:'book-1',startsAt:'2026-01-01T09:00Z',endsAt:'2026-01-01T10:00Z',attendees:2},{active:true,capacity:2}));});
+test('overlap uses half-open intervals',()=>{assert.equal(w.overlaps({startsAt:'2026-01-01T09:00Z',endsAt:'2026-01-01T10:00Z'},{startsAt:'2026-01-01T10:00Z',endsAt:'2026-01-01T11:00Z'}),false);assert.equal(w.overlaps({startsAt:'2026-01-01T09:00Z',endsAt:'2026-01-01T10:01Z'},{startsAt:'2026-01-01T10:00Z',endsAt:'2026-01-01T11:00Z'}),true);});
+test('proration uses integer cents',()=>assert.deepEqual(w.prorate({monthlyCents:31000,activeDays:10,periodDays:31,adjustmentCents:-500,taxBasisPoints:800}),{subtotalCents:10000,adjustmentCents:-500,taxCents:760,totalCents:10260}));
+test('runtime rejects weak secrets',()=>assert.throws(()=>validateRuntime({DATABASE_URL:'x',JWT_SECRET:'weak'}),/32/));

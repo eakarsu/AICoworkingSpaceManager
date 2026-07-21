@@ -4,6 +4,7 @@ const helmet = require('helmet');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 require('dotenv').config();
+require('./config/runtime').validateRuntime();
 
 const db = require('./db');
 const { auth, adminOnly, staffOrAdmin, JWT_SECRET } = require('./middleware/auth');
@@ -1153,27 +1154,6 @@ app.use((err, req, res, next) => {
 // ============================================================
 // Start Server
 // ============================================================
-// // === Batch 02 Gaps & Frontend Mounts ===
-app.use('/api/gap-maintenance-cleaning-parking-storage-phonebooths-lack-ai-end', require('./routes/gap_maintenance_cleaning_parking_storage_phonebooths_lack_ai_end'));
-
-// // === Batch 02 Gaps & Frontend Mounts ===
-app.use('/api/gap-accesscontrol-checkins-lack-ai-anomaly-detection', require('./routes/gap_accesscontrol_checkins_lack_ai_anomaly_detection'));
-
-// // === Batch 02 Gaps & Frontend Mounts ===
-app.use('/api/gap-limited-guest-wifi-bandwidth-management', require('./routes/gap_limited_guest_wifi_bandwidth_management'));
-
-// // === Batch 02 Gaps & Frontend Mounts ===
-app.use('/api/gap-limited-calendar-integration-no-full-google-outlook-adapter', require('./routes/gap_limited_calendar_integration_no_full_google_outlook_adapter'));
-
-// // === Batch 02 Gaps & Frontend Mounts ===
-app.use('/api/gap-limited-payment-integration-only-stripe-stub', require('./routes/gap_limited_payment_integration_only_stripe_stub'));
-
-// // === Batch 02 Gaps & Frontend Mounts ===
-app.use('/api/gap-no-member-mobile-app-for-check-in-booking-community', require('./routes/gap_no_member_mobile_app_for_check_in_booking_community'));
-
-// // === Batch 02 Gaps & Frontend Mounts ===
-app.use('/api/gap-no-webhooks', require('./routes/gap_no_webhooks'));
-
 app.listen(PORT, () => {
   console.log(`AI Coworking Space Manager API running on port ${PORT}`);
   console.log(`Health check: http://localhost:${PORT}/api/health`);
