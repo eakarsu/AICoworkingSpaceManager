@@ -18,7 +18,7 @@ const { router: roomAvailabilityRouter } = require('./routes/roomAvailability');
 const exportRoutes = require('./routes/export');
 
 const app = express();
-const PORT = process.env.PORT || 4000;
+const PORT = process.env.BACKEND_PORT || process.env.PORT || 4000;
 
 // ============================================================
 // Middleware
