@@ -48,7 +48,7 @@ export default function Login({ onLogin }) {
             {loading ? 'Signing In...' : 'Sign In'}
           </button>
           <button type="button" className="btn btn-secondary" style={{ width: '100%', marginTop: '12px' }} onClick={autoFill}>
-            Auto-Fill Demo Credentials
+            Auto Fill Demo Credentials
           </button>
         </form>
       </div>
