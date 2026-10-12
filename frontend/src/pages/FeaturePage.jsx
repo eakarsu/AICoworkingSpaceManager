@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import api from '../api';
+import recordRows from '../recordRows';
 
 function formatValue(val) {
   if (val === null || val === undefined) return '-';
@@ -46,9 +47,10 @@ export default function FeaturePage({ config }) {
     setLoading(true);
     try {
       const res = await api.get(`/${endpoint}`);
-      setItems(res.data);
+      setItems(recordRows(res.data));
     } catch (err) {
-      showToast('Failed to load data', 'error');
+      setItems([]);
+      showToast(err.response?.data?.error || err.message || 'Failed to load data', 'error');
     } finally {
       setLoading(false);
     }

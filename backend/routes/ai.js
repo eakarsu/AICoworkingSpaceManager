@@ -44,6 +44,11 @@ function requireFields(body, fields) {
   return missing.length ? missing : null;
 }
 
+function requestedFocus(body) {
+  const focus = typeof body?.analysis_focus === 'string' ? body.analysis_focus.trim().slice(0, 2000) : '';
+  return focus || 'Provide a balanced operational analysis based on the available data.';
+}
+
 // ── Existing endpoints (model upgraded) ──────────────────────────────────────
 
 // POST /member-matching - Suggest member matches based on skills
@@ -70,6 +75,7 @@ router.post('/member-matching', auth, aiRateLimiter, async (req, res) => {
 
     const prompt = `A coworking space member needs networking suggestions.
 
+Analysis focus: ${requestedFocus(req.body)}
 Member profile:
 - Name: ${user.name}
 - Company: ${user.company || 'N/A'}
@@ -315,6 +321,7 @@ router.post('/room-optimization', auth, aiRateLimiter, async (req, res) => {
 
     const prompt = `Analyze meeting room usage data and provide optimization recommendations.
 
+Analysis focus: ${requestedFocus(req.body)}
 Meeting Rooms:
 ${roomsResult.rows.map((r) => `- ${r.name}: Capacity ${r.capacity}, Rate $${r.hourly_rate}/hr, Status: ${r.status}`).join('\n')}
 
@@ -356,6 +363,7 @@ router.post('/newsletter', auth, aiRateLimiter, async (req, res) => {
 
     const prompt = `Generate an engaging weekly newsletter for coworking space members.
 
+Editorial focus: ${requestedFocus(req.body)}
 Upcoming Events:
 ${eventsResult.rows.map((e) => `- ${e.title} (${e.type}) on ${e.event_date} at ${e.location}: ${e.description || ''}`).join('\n') || 'No upcoming events'}
 
@@ -410,6 +418,7 @@ router.post('/pricing-recommendations', auth, aiRateLimiter, async (req, res) =>
 
     const prompt = `Recommend the best membership plan for this coworking space member based on their usage.
 
+Analysis focus: ${requestedFocus(req.body)}
 User: ${user.name} (${user.company || 'Independent'})
 Usage Data:
 - Total check-ins: ${usage.total_checkins}
@@ -451,6 +460,7 @@ router.post('/event-suggestions', auth, aiRateLimiter, async (req, res) => {
 
     const prompt = `Suggest new events based on member interests and past event performance.
 
+Programming focus: ${requestedFocus(req.body)}
 Member Skills (aggregated): ${[...new Set(allSkills)].join(', ') || 'N/A'}
 Member Interests (aggregated): ${[...new Set(allInterests)].join(', ') || 'N/A'}
 Total Members with profiles: ${membersResult.rows.length}
@@ -497,6 +507,7 @@ router.post('/space-utilization', auth, aiRateLimiter, async (req, res) => {
 
     const prompt = `Analyze coworking space utilization data and suggest improvements.
 
+Analysis focus: ${requestedFocus(req.body)}
 Area Utilization:
 ${analyticsResult.rows.map((a) => `- ${a.area}: Avg occupancy: ${parseFloat(a.avg_occupancy).toFixed(1)}, Peak: ${a.peak_occupancy}, Data points: ${a.data_points}`).join('\n') || 'No analytics data'}
 

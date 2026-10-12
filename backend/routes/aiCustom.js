@@ -197,6 +197,8 @@ Return JSON:
 // 5) Facility health dashboard
 router.post('/facility-health-dashboard', auth, aiRateLimiter, async (req, res) => {
   try {
+    const { analysis_focus = 'overall facility health', planning_horizon_days = 30 } = req.body;
+    const horizon = Math.min(365, Math.max(1, Number(planning_horizon_days) || 30));
     const [maintenance, cleaning, amenities, deskUtil] = await Promise.all([
       pool.query("SELECT status, priority, COUNT(*) AS count FROM maintenance_requests WHERE created_at >= NOW() - INTERVAL '30 days' GROUP BY status, priority"),
       pool.query("SELECT status, COUNT(*) AS count FROM cleaning_schedules GROUP BY status"),
@@ -213,6 +215,8 @@ router.post('/facility-health-dashboard', auth, aiRateLimiter, async (req, res) 
 
     const prompt = `Generate a facility health dashboard summary based on these operational metrics.
 
+Analysis focus: ${analysis_focus}
+Planning horizon: ${horizon} days
 Operational Stats: ${JSON.stringify(stats)}
 
 Return JSON:
@@ -233,7 +237,7 @@ Return JSON:
     const r = await callOpenRouter(SYSTEM, prompt, { temperature: 0.4, maxTokens: 2500 });
     const parsed = parseAIJson(r.content) || { raw: r.content };
     const output = { ...parsed, raw_stats: stats };
-    await saveAIResult(pool, { feature: 'facility-health-dashboard', user_id: uid(req), input: {}, output, model: r.model, usage: r.usage });
+    await saveAIResult(pool, { feature: 'facility-health-dashboard', user_id: uid(req), input: { analysis_focus, planning_horizon_days: horizon }, output, model: r.model, usage: r.usage });
     res.json({ ...output, model: r.model, usage: r.usage });
   } catch (err) { res.status(500).json({ error: err.response?.data?.error?.message || err.message }); }
 });

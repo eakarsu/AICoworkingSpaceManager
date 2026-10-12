@@ -7,12 +7,11 @@ export default function Login({ onLogin }) {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const authenticate = async (credentials) => {
     setError('');
     setLoading(true);
     try {
-      const res = await api.post('/auth/login', { email, password });
+      const res = await api.post('/auth/login', credentials);
       onLogin(res.data.token, res.data.user);
     } catch (err) {
       setError(err.response?.data?.error || 'Login failed. Please try again.');
@@ -21,9 +20,21 @@ export default function Login({ onLogin }) {
     }
   };
 
-  const autoFill = () => {
-    setEmail(import.meta.env.VITE_DEMO_EMAIL || '');
-    setPassword(import.meta.env.VITE_DEMO_PASSWORD || '');
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    await authenticate({ email, password });
+  };
+
+  const loginAsDemo = async () => {
+    const demoEmail = import.meta.env.VITE_DEMO_EMAIL || '';
+    const demoPassword = import.meta.env.VITE_DEMO_PASSWORD || '';
+    setEmail(demoEmail);
+    setPassword(demoPassword);
+    if (!demoEmail || !demoPassword) {
+      setError('Demo login is not configured for this environment.');
+      return;
+    }
+    await authenticate({ email: demoEmail, password: demoPassword });
   };
 
   return (
@@ -47,8 +58,8 @@ export default function Login({ onLogin }) {
           <button type="submit" className="btn btn-primary" style={{ width: '100%' }} disabled={loading}>
             {loading ? 'Signing In...' : 'Sign In'}
           </button>
-          <button type="button" className="btn btn-secondary" style={{ width: '100%', marginTop: '12px' }} onClick={autoFill}>
-            Auto Fill Demo Credentials
+          <button type="button" className="btn btn-secondary" style={{ width: '100%', marginTop: '12px' }} onClick={loginAsDemo} disabled={loading}>
+            Log In as Demo
           </button>
         </form>
       </div>
