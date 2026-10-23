@@ -6,11 +6,15 @@ const { auth } = require('../middleware/auth');
 // GET all members (directory)
 router.get('/', async (req, res) => {
   try {
+    const p=[]; const c=[];
+    if(req.query.search){ p.push('%'+req.query.search+'%'); const i=p.length; c.push('(u.name ILIKE $'+i+' OR u.email ILIKE $'+i+' OR u.company ILIKE $'+i+')'); }
+    if(req.query.role){ p.push(req.query.role); c.push('u.role=$'+p.length); }
+    if(req.query.company){ p.push('%'+req.query.company+'%'); c.push('u.company ILIKE $'+p.length); }
     const result = await pool.query(
       `SELECT u.id, u.name, u.email, u.role, u.company, u.skills, u.bio, u.phone, u.avatar_url, u.created_at,
               mp.interests, mp.availability, mp.linkedin, mp.website
-       FROM users u LEFT JOIN member_profiles mp ON u.id = mp.user_id
-       ORDER BY u.name ASC`
+       FROM users u LEFT JOIN member_profiles mp ON u.id = mp.user_id` + (c.length?' WHERE '+c.join(' AND '):'') + `
+       ORDER BY u.name ASC`, p
     );
     res.json(result.rows);
   } catch (err) {

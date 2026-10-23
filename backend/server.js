@@ -1140,6 +1140,8 @@ app.use('/api/custom-views', require('./routes/customViews'));
 // 404 handler
 // ============================================================
 
+app.use('/api/feature-pack32a', require('./routes/featurePack32A')({ pool: db, auth }));
+
 // Advisory AI reports only; native execution and approval routes stay unchanged.
 const aiWorkspaceSupport = require("./aiWorkspaceAdapters.cjs");
 const aiWorkspaceDatabase = require("./db/index.js").pool;
